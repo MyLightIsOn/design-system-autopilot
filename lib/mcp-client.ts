@@ -1,12 +1,7 @@
 /**
- * MCP Client
- * 
- * Communicates with the local MCP server to execute tools
+ * MCP Client - Mock Implementation for Demo
+ * Uses realistic Figma data without hitting API limits
  */
-
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { spawn } from 'child_process';
 
 interface ToolCall {
   name: string;
@@ -18,221 +13,243 @@ interface ToolResult {
   isError?: boolean;
 }
 
-// Singleton MCP client
-let mcpClient: Client | null = null;
-let isConnecting = false;
+// Mock component data for form-related components
+const MOCK_COMPONENTS: Record<string, any> = {
+  'textfield': {
+    id: '70388:8001',
+    name: 'TextField / Default',
+    type: 'COMPONENT',
+    fills: [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }],
+    strokes: [{ type: 'SOLID', color: { r: 0.8, g: 0.8, b: 0.8 } }],
+    paddingTop: 8,
+    paddingRight: 12,
+    paddingBottom: 8,
+    paddingLeft: 12,
+    cornerRadius: 3,
+  },
+  'textarea': {
+    id: '70391:8030',
+    name: 'TextArea / Default',
+    type: 'COMPONENT',
+    fills: [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }],
+    strokes: [{ type: 'SOLID', color: { r: 0.8, g: 0.8, b: 0.8 } }],
+    paddingTop: 8,
+    paddingRight: 12,
+    paddingBottom: 8,
+    paddingLeft: 12,
+    cornerRadius: 3,
+  },
+  'button': {
+    id: '70387:7994',
+    name: 'Button / Primary',
+    type: 'COMPONENT',
+    fills: [{ type: 'SOLID', color: { r: 0.0, g: 0.32, b: 0.8 } }],
+    paddingTop: 6,
+    paddingRight: 12,
+    paddingBottom: 6,
+    paddingLeft: 12,
+    cornerRadius: 3,
+  },
+  'label': {
+    id: '70389:8010',
+    name: 'Label / Default',
+    type: 'COMPONENT',
+    fills: [{ type: 'SOLID', color: { r: 0.09, g: 0.09, b: 0.09 } }],
+    paddingBottom: 4,
+  },
+};
 
-/**
- * Get or create the MCP client connection
- */
-async function getMCPClient(): Promise<Client> {
-  if (mcpClient) {
-    return mcpClient;
-  }
-
-  // Prevent multiple simultaneous connection attempts
-  if (isConnecting) {
-    // Wait for the connection to be established
-    await new Promise(resolve => setTimeout(resolve, 100));
-    return getMCPClient();
-  }
-
-  isConnecting = true;
-
-  try {
-    // Path to your MCP server
-    const serverPath = '/Users/lawrence/dev/mcp-server/run-server.sh';
-
-    // Spawn the MCP server process
-    const serverProcess = spawn(serverPath, [], {
-      env: {
-        ...process.env,
-        // Make sure the .env is loaded
-        FIGMA_ACCESS_TOKEN: process.env.FIGMA_ACCESS_TOKEN || '',
-      },
-    });
-
-    // Create transport
-    const transport = new StdioClientTransport({
-      command: serverPath,
-      args: [],
-      env: {
-        ...process.env,
-        FIGMA_ACCESS_TOKEN: process.env.FIGMA_ACCESS_TOKEN || '',
-      },
-    });
-
-    // Create client
-    const client = new Client({
-      name: 'design-system-autopilot',
-      version: '1.0.0',
-    }, {
-      capabilities: {},
-    });
-
-    // Connect to the server
-    await client.connect(transport);
-
-    mcpClient = client;
-    isConnecting = false;
-
-    console.log('MCP Client connected successfully');
-    return client;
-  } catch (error) {
-    isConnecting = false;
-    console.error('Failed to connect to MCP server:', error);
-    throw error;
-  }
-}
-
-/**
- * Execute an MCP tool
- */
 export async function executeMCPTool(toolName: string, input: any): Promise<ToolResult> {
-  try {
-    console.log(`Executing MCP tool: ${toolName}`, input);
-    
-    const client = await getMCPClient();
-    
-    // Call the tool
-    const result = await client.callTool({
-      name: toolName,
-      arguments: input,
-    });
+  console.log(`Executing mock tool: ${toolName}`, input);
 
-    console.log(`Tool ${toolName} result:`, result);
+  // Simulate network delay
+  await new Promise(resolve => setTimeout(resolve, 300));
 
-    return result as ToolResult;
-  } catch (error) {
-    console.error(`Error executing tool ${toolName}:`, error);
-    
-    // Fallback to mock data if MCP server fails (e.g., rate limiting)
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    
-    if (errorMessage.includes('rate') || errorMessage.includes('limit')) {
-      console.log('Figma rate limit detected, using fallback data');
-      return getFallbackData(toolName, input);
-    }
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Error: ${errorMessage}`,
-        },
-      ],
-      isError: true,
-    };
-  }
-}
-
-/**
- * Fallback data when Figma API is rate limited
- */
-function getFallbackData(toolName: string, input: any): ToolResult {
-  // Use realistic sample data based on ADS
   if (toolName === 'figma_search_components') {
+    const query = input.query.toLowerCase();
+    let components: any[] = [];
+
+    // Return form-related components for form queries
+    if (query.includes('form') || query.includes('contact')) {
+      components = [
+        { id: '70388:8001', name: 'TextField / Default', type: 'COMPONENT' },
+        { id: '70391:8030', name: 'TextArea / Default', type: 'COMPONENT' },
+        { id: '70387:7994', name: 'Button / Primary', type: 'COMPONENT' },
+        { id: '70389:8010', name: 'Label / Default', type: 'COMPONENT' },
+      ];
+    } else if (query.includes('button')) {
+      components = [
+        { id: '70387:7994', name: 'Button / Primary', type: 'COMPONENT' },
+      ];
+    } else if (query.includes('input') || query.includes('text')) {
+      components = [
+        { id: '70388:8001', name: 'TextField / Default', type: 'COMPONENT' },
+        { id: '70391:8030', name: 'TextArea / Default', type: 'COMPONENT' },
+      ];
+    }
+
     return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            query: input.query,
-            pagesSearched: 5,
-            count: 3,
-            components: [
-              { id: '70387:7994', name: 'Button / Primary', type: 'COMPONENT', description: 'Primary action button' },
-              { id: '70387:7995', name: 'Button / Secondary', type: 'COMPONENT', description: 'Secondary action button' },
-              { id: '70387:7996', name: 'Button / Subtle', type: 'COMPONENT', description: 'Subtle action button' },
-            ],
-            truncated: false,
-          }, null, 2),
-        },
-      ],
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          query: input.query,
+          count: components.length,
+          components,
+        }, null, 2),
+      }],
     };
   }
-  
+
   if (toolName === 'figma_get_component') {
+    const idMap: Record<string, string> = {
+      '70387:7994': 'button',
+      '70388:8001': 'textfield',
+      '70389:8010': 'label',
+      '70391:8030': 'textarea',
+    };
+
+    const key = idMap[input.nodeId];
+    const component = key ? MOCK_COMPONENTS[key] : MOCK_COMPONENTS['button'];
+
     return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            nodeId: input.nodeId,
-            component: {
-              id: input.nodeId,
-              name: 'Button / Primary',
-              type: 'COMPONENT',
-              children: [
-                {
-                  id: '70387:7995',
-                  name: 'Label',
-                  type: 'TEXT',
-                  characters: 'Button',
-                  style: {
-                    fontFamily: 'Inter',
-                    fontSize: 14,
-                    fontWeight: 500,
-                  },
-                },
-              ],
-              fills: [
-                { 
-                  type: 'SOLID', 
-                  color: { r: 0.0, g: 0.32, b: 0.8 },
-                  opacity: 1,
-                }
-              ],
-              paddingTop: 6,
-              paddingRight: 12,
-              paddingBottom: 6,
-              paddingLeft: 12,
-              cornerRadius: 3,
-              layoutMode: 'HORIZONTAL',
-              itemSpacing: 4,
-            },
-            styles: {
-              fills: [{ type: 'SOLID', color: { r: 0.0, g: 0.32, b: 0.8 } }],
-            },
-            properties: {
-              width: 80,
-              height: 32,
-              padding: { top: 6, right: 12, bottom: 6, left: 12 },
-              cornerRadius: 3,
-            },
-          }, null, 2),
-        },
-      ],
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          nodeId: input.nodeId,
+          component,
+        }, null, 2),
+      }],
     };
   }
-  
+
   if (toolName === 'codegen_react_component') {
-    // This tool doesn't call Figma, so it should still work
-    // But provide fallback just in case
     const componentData = input.componentData;
     const node = componentData.component || componentData;
-    
-    const code = `import React from 'react';
+    const name = input.componentName;
 
-interface ${input.componentName}Props {
+    let code = generateComponentCode(name, node);
+
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          componentName: name,
+          code,
+          hasTypes: true,
+        }, null, 2),
+      }],
+    };
+  }
+
+  return {
+    content: [{
+      type: 'text',
+      text: `Tool ${toolName} executed`,
+    }],
+  };
+}
+
+function generateComponentCode(name: string, node: any): string {
+  const lowerName = name.toLowerCase();
+
+  if (lowerName.includes('textfield') || lowerName.includes('input')) {
+    return `import React from 'react';
+
+interface ${name}Props {
+  value?: string;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  label?: string;
+  required?: boolean;
+}
+
+export const ${name}: React.FC<${name}Props> = (props) => {
+  return (
+    <div style={{ marginBottom: '16px' }}>
+      {props.label && (
+        <label style={{ display: 'block', marginBottom: '4px', fontSize: '12px', fontWeight: 600 }}>
+          {props.label}
+          {props.required && <span style={{ color: 'red' }}> *</span>}
+        </label>
+      )}
+      <input 
+        type="text" 
+        value={props.value}
+        onChange={props.onChange}
+        placeholder={props.placeholder}
+        disabled={props.disabled}
+        required={props.required}
+        style={{ 
+          padding: '8px 12px',
+          borderRadius: '3px',
+          border: '1px solid #ccc',
+          fontSize: '14px',
+          width: '100%',
+        }}
+      />
+    </div>
+  );
+};`;
+  }
+
+  if (lowerName.includes('textarea') || lowerName.includes('message')) {
+    return `import React from 'react';
+
+interface ${name}Props {
+  value?: string;
+  onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  placeholder?: string;
+  label?: string;
+  rows?: number;
+}
+
+export const ${name}: React.FC<${name}Props> = (props) => {
+  return (
+    <div style={{ marginBottom: '16px' }}>
+      {props.label && (
+        <label style={{ display: 'block', marginBottom: '4px', fontSize: '12px', fontWeight: 600 }}>
+          {props.label}
+        </label>
+      )}
+      <textarea 
+        value={props.value}
+        onChange={props.onChange}
+        placeholder={props.placeholder}
+        rows={props.rows || 4}
+        style={{ 
+          padding: '8px 12px',
+          borderRadius: '3px',
+          border: '1px solid #ccc',
+          fontSize: '14px',
+          width: '100%',
+          fontFamily: 'inherit',
+        }}
+      />
+    </div>
+  );
+};`;
+  }
+
+  // Default to button
+  return `import React from 'react';
+
+interface ${name}Props {
   onClick?: () => void;
   disabled?: boolean;
   children: React.ReactNode;
+  type?: 'submit' | 'button';
 }
 
-export const ${input.componentName}: React.FC<${input.componentName}Props> = (props) => {
+export const ${name}: React.FC<${name}Props> = (props) => {
   return (
     <button 
-      className="${input.componentName.toLowerCase()}" 
-      type="button" 
+      type={props.type || 'button'}
       onClick={props.onClick} 
       disabled={props.disabled}
       style={{ 
-        paddingTop: '${node.paddingTop || 6}px', 
-        paddingRight: '${node.paddingRight || 12}px', 
-        paddingBottom: '${node.paddingBottom || 6}px', 
-        paddingLeft: '${node.paddingLeft || 12}px', 
-        borderRadius: '${node.cornerRadius || 3}px', 
+        padding: '6px 12px',
+        borderRadius: '3px',
         backgroundColor: '#0052cc',
         border: 'none',
         color: 'white',
@@ -245,53 +262,15 @@ export const ${input.componentName}: React.FC<${input.componentName}Props> = (pr
     </button>
   );
 };`;
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            componentName: input.componentName,
-            code,
-            hasTypes: input.includeTypes !== false,
-            message: 'Component generated from Figma design',
-          }, null, 2),
-        },
-      ],
-    };
-  }
-  
-  // Default fallback
-  return {
-    content: [
-      {
-        type: 'text',
-        text: `Tool ${toolName} - Rate limit active, using sample data. Try again in a few minutes for real Figma data.`,
-      },
-    ],
-  };
 }
 
-/**
- * Execute multiple MCP tools in sequence
- */
 export async function executeToolUses(toolUses: ToolCall[]): Promise<ToolResult[]> {
   const results: ToolResult[] = [];
-  
+
   for (const toolUse of toolUses) {
     const result = await executeMCPTool(toolUse.name, toolUse.input);
     results.push(result);
   }
-  
-  return results;
-}
 
-/**
- * Close the MCP client connection
- */
-export async function closeMCPClient() {
-  if (mcpClient) {
-    await mcpClient.close();
-    mcpClient = null;
-  }
+  return results;
 }

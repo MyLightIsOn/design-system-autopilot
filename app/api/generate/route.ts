@@ -108,6 +108,8 @@ export async function POST(request: NextRequest) {
 
     while (iterations < maxIterations) {
       iterations++;
+      
+      console.log(`\n=== Iteration ${iterations} ===`);
 
       const message = await anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
@@ -115,16 +117,23 @@ export async function POST(request: NextRequest) {
         tools: MCP_TOOLS as any,
         messages: conversationHistory,
       });
+      
+      console.log('Stop reason:', message.stop_reason);
+      console.log('Content blocks:', message.content.map((b: any) => b.type));
 
       // Check if Claude wants to use tools
       if (message.stop_reason === 'tool_use') {
         // Extract tool uses
         const toolUses = message.content.filter((block: any) => block.type === 'tool_use');
         
+        console.log('Tool uses:', toolUses.map((t: any) => t.name));
+        
         // Execute the tools
         const toolResults = await executeToolUses(
           toolUses.map((t: any) => ({ name: t.name, input: t.input }))
         );
+        
+        console.log('Tool results received:', toolResults.length);
 
         // Add Claude's response to history
         conversationHistory.push({
@@ -151,8 +160,21 @@ export async function POST(request: NextRequest) {
         .filter((block: any) => block.type === 'text')
         .map((block: any) => block.text)
         .join('\n');
+      
+      console.log('Got text response, breaking loop');
 
       break;
+    }
+
+    // Log for debugging
+    console.log('Final response:', finalResponse);
+    console.log('Iterations:', iterations);
+
+    if (!finalResponse) {
+      return NextResponse.json({
+        error: 'No response generated after tool execution',
+        iterations,
+      }, { status: 500 });
     }
 
     return NextResponse.json({
