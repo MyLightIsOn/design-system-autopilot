@@ -1,9 +1,87 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
+import { executeToolUses } from '@/lib/mcp-client';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
+
+// Define the MCP tools that Claude can use
+const MCP_TOOLS = [
+  {
+    name: 'figma_get_file',
+    description: 'Fetch a Figma file structure and metadata. Returns the full file tree including all pages, frames, and components.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fileKey: {
+          type: 'string',
+          description: 'The Figma file key (from the URL: figma.com/file/FILE_KEY/...)',
+        },
+      },
+      required: ['fileKey'],
+    },
+  },
+  {
+    name: 'figma_search_components',
+    description: 'Search for components in a Figma file by name or type (e.g., "button", "input", "form").',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fileKey: {
+          type: 'string',
+          description: 'The Figma file key',
+        },
+        query: {
+          type: 'string',
+          description: 'Search query (component name or type)',
+        },
+      },
+      required: ['fileKey', 'query'],
+    },
+  },
+  {
+    name: 'figma_get_component',
+    description: 'Get detailed information about a specific component in a Figma file.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fileKey: {
+          type: 'string',
+          description: 'The Figma file key',
+        },
+        nodeId: {
+          type: 'string',
+          description: 'The node ID of the component',
+        },
+      },
+      required: ['fileKey', 'nodeId'],
+    },
+  },
+  {
+    name: 'codegen_react_component',
+    description: 'Generate a React component from Figma component data.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        componentData: {
+          type: 'object',
+          description: 'Figma component data (from figma_get_component)',
+        },
+        componentName: {
+          type: 'string',
+          description: 'Desired component name in PascalCase',
+        },
+        includeTypes: {
+          type: 'boolean',
+          description: 'Include TypeScript types/interfaces',
+          default: true,
+        },
+      },
+      required: ['componentData', 'componentName'],
+    },
+  },
+];
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,27 +94,70 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Call Claude with the MCP tools
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-    });
+    // Agentic loop: keep calling Claude until it stops using tools
+    const conversationHistory: any[] = [
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ];
 
-    // Extract the response
-    const responseText = message.content
-      .filter((block) => block.type === 'text')
-      .map((block) => (block as any).text)
-      .join('\n');
+    let finalResponse = '';
+    let iterations = 0;
+    const maxIterations = 5; // Prevent infinite loops
+
+    while (iterations < maxIterations) {
+      iterations++;
+
+      const message = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        tools: MCP_TOOLS as any,
+        messages: conversationHistory,
+      });
+
+      // Check if Claude wants to use tools
+      if (message.stop_reason === 'tool_use') {
+        // Extract tool uses
+        const toolUses = message.content.filter((block: any) => block.type === 'tool_use');
+        
+        // Execute the tools
+        const toolResults = await executeToolUses(
+          toolUses.map((t: any) => ({ name: t.name, input: t.input }))
+        );
+
+        // Add Claude's response to history
+        conversationHistory.push({
+          role: 'assistant',
+          content: message.content,
+        });
+
+        // Add tool results to history
+        conversationHistory.push({
+          role: 'user',
+          content: toolUses.map((toolUse: any, idx: number) => ({
+            type: 'tool_result',
+            tool_use_id: toolUse.id,
+            content: toolResults[idx].content[0].text,
+          })),
+        });
+
+        // Continue the loop - Claude will use the tool results
+        continue;
+      }
+
+      // No more tool use - extract final response
+      finalResponse = message.content
+        .filter((block: any) => block.type === 'text')
+        .map((block: any) => block.text)
+        .join('\n');
+
+      break;
+    }
 
     return NextResponse.json({
-      response: responseText,
-      usage: message.usage,
+      response: finalResponse,
+      iterations,
     });
   } catch (error) {
     console.error('Error calling Claude:', error);

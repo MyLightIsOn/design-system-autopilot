@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import MessageContent from './MessageContent';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -78,10 +79,10 @@ export default function ChatInterface() {
                   : 'bg-gray-100 mr-8'
               }`}
             >
-              <div className="font-semibold mb-1">
+              <div className="font-semibold mb-2">
                 {msg.role === 'user' ? 'You' : 'Claude'}
               </div>
-              <div className="whitespace-pre-wrap">{msg.content}</div>
+              <MessageContent content={msg.content} />
             </div>
           ))
         )}
