@@ -16,15 +16,36 @@ export default function LivePreview({ code, componentName }: LivePreviewProps) {
     console.log('LivePreview rendering with:', { componentName, codeLength: code.length });
 
     try {
-      // Transform TypeScript/JSX to JavaScript
-      console.log('Starting Babel transform...');
-      const transformed = Babel.transform(code, {
-        presets: ['react', 'typescript'],
+      // Clean the code for inline execution
+      let cleanedCode = code
+        .replace(/import\s+.*?from\s+['"].*?['"];?\s*/g, '') // Remove imports
+        .replace(/export\s+(const|function|default|class)\s+/g, '$1 '); // Remove export keywords
+      
+      console.log('Code after cleaning imports/exports');
+      
+      // Use TypeScript preset to properly strip ALL type annotations
+      console.log('Starting Babel transform with TypeScript...');
+      const transformed = Babel.transform(cleanedCode, {
+        presets: [
+          ['typescript', { 
+            isTSX: true,
+            allExtensions: true,
+            onlyRemoveTypeImports: false // Remove all type info
+          }],
+          'react'
+        ],
         filename: `${componentName}.tsx`,
-        sourceMaps: false, // Disable source maps to avoid warnings
+        sourceMaps: false,
       }).code;
 
-      console.log('Babel transform complete, code length:', transformed?.length);
+      console.log('Babel transform complete');
+      console.log('Full transformed code:');
+      console.log(transformed);
+      
+      // Check if any type references remain
+      if (transformed && transformed.includes('Props')) {
+        console.warn('WARNING: Found "Props" in transformed code - types may not be fully stripped');
+      }
 
       // Create the HTML document for the iframe
       const iframeDoc = `

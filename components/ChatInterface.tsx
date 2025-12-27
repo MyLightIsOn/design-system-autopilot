@@ -69,8 +69,8 @@ export default function ChatInterface({ onCodeGenerated }: ChatInterfaceProps) {
               if (code.includes('export') || code.includes('interface')) {
                 componentCode = code;
 
-                // Extract component name
-                const nameMatch = code.match(/(?:export (?:const|function) |interface )(\w+)/);
+                // Extract component name - look for export const/function, NOT interface
+                const nameMatch = code.match(/export\s+(?:const|function)\s+(\w+)/);
                 if (nameMatch) {
                   componentName = nameMatch[1];
                 }
