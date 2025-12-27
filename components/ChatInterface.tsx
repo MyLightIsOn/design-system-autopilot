@@ -8,7 +8,11 @@ interface Message {
   content: string;
 }
 
-export default function ChatInterface() {
+interface ChatInterfaceProps {
+  onCodeGenerated?: (code: string, componentName: string) => void;
+}
+
+export default function ChatInterface({ onCodeGenerated }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -39,6 +43,53 @@ export default function ChatInterface() {
         content: data.response,
       };
       setMessages((prev) => [...prev, assistantMessage]);
+
+      // Extract code blocks and trigger callback
+      if (onCodeGenerated) {
+        console.log('Checking for code blocks...');
+        console.log('Response length:', data.response.length);
+
+        // Match code blocks - handle various formats
+        // This regex looks for ``` followed by optional language, then captures everything until closing ```
+        const allCodeBlocks = data.response.match(/```[\w]*\s*([\s\S]*?)```/g);
+
+        if (allCodeBlocks && allCodeBlocks.length > 0) {
+          console.log(`Found ${allCodeBlocks.length} code blocks`);
+
+          // Get the first code block that contains "export" (actual component code)
+          let componentCode = null;
+          let componentName = 'Component';
+
+          for (const block of allCodeBlocks) {
+            const codeMatch = block.match(/```[\w]*\s*([\s\S]*?)```/);
+            if (codeMatch) {
+              const code = codeMatch[1].trim();
+
+              // Check if this is actual component code (has export or interface)
+              if (code.includes('export') || code.includes('interface')) {
+                componentCode = code;
+
+                // Extract component name
+                const nameMatch = code.match(/(?:export (?:const|function) |interface )(\w+)/);
+                if (nameMatch) {
+                  componentName = nameMatch[1];
+                }
+
+                console.log('Found component code, name:', componentName);
+                break; // Use the first component found
+              }
+            }
+          }
+
+          if (componentCode) {
+            onCodeGenerated(componentCode, componentName);
+          } else {
+            console.log('Code blocks found but no component code detected');
+          }
+        } else {
+          console.log('No code blocks found in response');
+        }
+      }
     } catch (error) {
       console.error('Error:', error);
       const errorMessage: Message = {

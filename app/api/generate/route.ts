@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
 
     let finalResponse = '';
     let iterations = 0;
-    const maxIterations = 5; // Prevent infinite loops
+    const maxIterations = 10; // Increased for complex multi-component generation
 
     while (iterations < maxIterations) {
       iterations++;
@@ -120,6 +120,16 @@ export async function POST(request: NextRequest) {
       
       console.log('Stop reason:', message.stop_reason);
       console.log('Content blocks:', message.content.map((b: any) => b.type));
+
+      // Collect any text content from this message
+      const textContent = message.content
+        .filter((block: any) => block.type === 'text')
+        .map((block: any) => block.text)
+        .join('\n');
+      
+      if (textContent) {
+        finalResponse += (finalResponse ? '\n' : '') + textContent;
+      }
 
       // Check if Claude wants to use tools
       if (message.stop_reason === 'tool_use') {
@@ -155,14 +165,8 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // No more tool use - extract final response
-      finalResponse = message.content
-        .filter((block: any) => block.type === 'text')
-        .map((block: any) => block.text)
-        .join('\n');
-      
-      console.log('Got text response, breaking loop');
-
+      // No more tool use - we're done
+      console.log('Got final response, breaking loop');
       break;
     }
 
